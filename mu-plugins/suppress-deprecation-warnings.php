@@ -6,5 +6,5 @@
  * Version: 1.0
  */
 
-// Suppress all deprecated notices, including dynamic property warnings.
+// Suppress all deprecated notices.
 error_reporting( error_reporting() & ~E_DEPRECATED );
