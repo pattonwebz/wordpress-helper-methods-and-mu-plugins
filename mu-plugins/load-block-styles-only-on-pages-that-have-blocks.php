@@ -1,7 +1,9 @@
 <?php
 /**
- * Dequeues block styles if no blocks appear on a page. This should generally be considered safe but always
- * a chance that some other elements on pages use the same styles even if not a block.
+ * Plugin Name: Dequeu block styles when no blocks are on a page.
+ * Description: Dequeues block styles if no blocks appear on a page. This should generally be considered safe but always a chance that some other elements on pages use the same styles even if not a block.
+ * Version: 1.0
+ * Author: William Patton
  */
 
 
