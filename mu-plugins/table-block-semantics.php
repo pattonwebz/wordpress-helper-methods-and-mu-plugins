@@ -109,10 +109,10 @@ add_filter( 'render_block_core/table', 'pw_table_semantics_render', 10, 2 );
  * @return string
  */
 function pw_table_semantics_make_presentational( $html ) {
-	return preg_replace_callback(
-		'#<table\b([^>]*)>#i',
+	$result = preg_replace_callback(
+		'#<table\b((?:[^>"\']+|"[^"]*"|\'[^\']*\')*)>#i',
 		function ( $match ) {
-			if ( preg_match( '/\srole\s*=/i', $match[1] ) ) {
+			if ( pw_table_semantics_has_attribute( $match[1], 'role' ) ) {
 				return $match[0];
 			}
 			return '<table role="presentation"' . $match[1] . '>';
@@ -120,6 +120,22 @@ function pw_table_semantics_make_presentational( $html ) {
 		$html,
 		1
 	);
+	return null === $result ? $html : $result;
+}
+
+/**
+ * Check for an attribute without mistaking text inside another attribute's value for its name.
+ *
+ * @param string $attributes The attribute string from the opening tag.
+ * @param string $name       The attribute name.
+ * @return bool
+ */
+function pw_table_semantics_has_attribute( $attributes, $name ) {
+	$result = preg_match_all( '#(?:^|\s)([^\s=/>]+)(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+))?#', $attributes, $matches );
+	if ( false === $result ) {
+		return true;
+	}
+	return in_array( strtolower( $name ), array_map( 'strtolower', $matches[1] ), true );
 }
 
 /**
@@ -130,7 +146,7 @@ function pw_table_semantics_make_presentational( $html ) {
  * @return string
  */
 function pw_table_semantics_with_scope( $attributes, $scope ) {
-	if ( preg_match( '/\sscope\s*=/i', $attributes ) ) {
+	if ( pw_table_semantics_has_attribute( $attributes, 'scope' ) ) {
 		return $attributes;
 	}
 	return rtrim( $attributes ) . ' scope="' . $scope . '"';
@@ -143,29 +159,46 @@ function pw_table_semantics_with_scope( $attributes, $scope ) {
  * @return string
  */
 function pw_table_semantics_add_row_headers( $html ) {
+	$original = $html;
+	$failed   = false;
+
 	// Column headers in <thead>.
 	$html = preg_replace_callback(
 		'#<thead\b.*?</thead>#is',
-		function ( $section ) {
-			return preg_replace_callback(
-				'#<th\b([^>]*)>#i',
+		function ( $section ) use ( &$failed ) {
+			$result = preg_replace_callback(
+				'#<th\b((?:[^>"\']+|"[^"]*"|\'[^\']*\')*)>#i',
 				function ( $cell ) {
 					return '<th' . pw_table_semantics_with_scope( $cell[1], 'col' ) . '>';
 				},
 				$section[0]
 			);
+			if ( null === $result ) {
+				$failed = true;
+				return $section[0];
+			}
+			return $result;
 		},
 		$html
 	);
+	if ( null === $html || $failed ) {
+		return $original;
+	}
 
 	// First cell of every row in <tbody>. <tfoot> rows are left alone.
-	return preg_replace_callback(
+	$result = preg_replace_callback(
 		'#<tbody\b.*?</tbody>#is',
-		function ( $section ) {
-			return preg_replace_callback( '#<tr\b[^>]*>.*?</tr>#is', 'pw_table_semantics_row_first_cell', $section[0] );
+		function ( $section ) use ( &$failed ) {
+			$result = preg_replace_callback( '#<tr\b(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>.*?</tr>#is', 'pw_table_semantics_row_first_cell', $section[0] );
+			if ( null === $result ) {
+				$failed = true;
+				return $section[0];
+			}
+			return $result;
 		},
 		$html
 	);
+	return null === $result || $failed ? $original : $result;
 }
 
 /**
@@ -177,7 +210,7 @@ function pw_table_semantics_add_row_headers( $html ) {
 function pw_table_semantics_row_first_cell( $row_match ) {
 	$row = $row_match[0];
 
-	if ( ! preg_match( '#<(td|th)\b([^>]*)>#i', $row, $first, PREG_OFFSET_CAPTURE ) ) {
+	if ( ! preg_match( '#<!--.*?-->(*SKIP)(*F)|<(td|th)\b((?:[^>"\']+|"[^"]*"|\'[^\']*\')*)>|<(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>(*SKIP)(*F)#is', $row, $first, PREG_OFFSET_CAPTURE ) ) {
 		return $row;
 	}
 
@@ -186,17 +219,21 @@ function pw_table_semantics_row_first_cell( $row_match ) {
 	$length = strlen( $first[0][0] );
 	$open   = '<th' . pw_table_semantics_with_scope( $first[2][0], 'row' ) . '>';
 
-	// Already a header cell: just make sure it has a scope.
-	if ( 'th' === $tag ) {
-		return substr( $row, 0, $start ) . $open . substr( $row, $start + $length );
+	// Find the next cell tag, ignoring tags and comments inside the cell.
+	$after  = substr( $row, $start + $length );
+	$offset = 0;
+	while ( preg_match( '#<!--.*?-->|<(/?)([a-z][a-z0-9:-]*)\b(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>#is', $after, $next, PREG_OFFSET_CAPTURE, $offset ) ) {
+		$offset = $next[0][1] + strlen( $next[0][0] );
+		if ( isset( $next[2] ) && in_array( strtolower( $next[2][0] ), array( 'td', 'th' ), true ) ) {
+			if ( '/' !== $next[1][0] || $tag !== strtolower( $next[2][0] ) ) {
+				return $row;
+			}
+			if ( 'th' === $tag ) {
+				return substr( $row, 0, $start ) . $open . $after;
+			}
+			return substr( $row, 0, $start ) . $open . substr( $after, 0, $next[0][1] ) . '</th>' . substr( $after, $offset );
+		}
 	}
 
-	// A data cell: swap the opening tag and its own closing tag. Leave malformed rows alone.
-	$after     = substr( $row, $start + $length );
-	$close_pos = stripos( $after, '</td>' );
-	if ( false === $close_pos ) {
-		return $row;
-	}
-
-	return substr( $row, 0, $start ) . $open . substr( $after, 0, $close_pos ) . '</th>' . substr( $after, $close_pos + 5 );
+	return $row;
 }

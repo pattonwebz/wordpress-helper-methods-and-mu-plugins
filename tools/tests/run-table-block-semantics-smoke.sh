@@ -120,6 +120,39 @@ check( 'empty string is returned unchanged', '' === render( '', 'is-style-row-he
 $cell = '<figure class="wp-block-table"><table><tbody><tr><td><a href="/x">link</a> and <strong>bold</strong> &amp; text</td><td>v</td></tr></tbody></table></figure>';
 check( 'inline markup and entities inside the cell are preserved', false !== strpos( render( $cell, 'is-style-row-headers' ), '<th scope="row"><a href="/x">link</a> and <strong>bold</strong> &amp; text</th>' ) );
 
+$quoted = '<figure><table title="a > b"><thead><tr><th title="a > b">H</th><th title=\'c > d\' scope="col">H2</th></tr></thead><tbody><tr title="a > b"><td title=\'c > d\'>x</td><td>y</td></tr></tbody></table></figure>';
+$out    = render( $quoted, 'is-style-row-headers' );
+check( 'quoted greater-than signs in headers, rows and cells are preserved', false !== strpos( $out, '<th title="a > b" scope="col">H</th>' ) && false !== strpos( $out, '<th title=\'c > d\' scope="col">H2</th>' ) && false !== strpos( $out, '<th title=\'c > d\' scope="row">x</th><td>y</td>' ) );
+check( 'quoted greater-than sign in table attribute is preserved', false !== strpos( render( $quoted, 'is-style-layout-only' ), '<table role="presentation" title="a > b">' ) );
+$attr_text = '<table title="other role=grid"><thead><tr><th title="other scope=row">H</th></tr></thead><tbody><tr><td title="other scope=col">x</td></tr></tbody></table>';
+check( 'attribute-like text inside quoted values is not an attribute', false !== strpos( render( $attr_text, 'is-style-layout-only' ), '<table role="presentation" title="other role=grid">' ) && false !== strpos( render( $attr_text, 'is-style-row-headers' ), '<th title="other scope=row" scope="col">' ) && false !== strpos( render( $attr_text, 'is-style-row-headers' ), '<th title="other scope=col" scope="row">' ) );
+$broken = '<table><tbody><tr><td>Label<td>Value</td></tr><tr><td>Label<th>Value</th></tr></tbody></table>';
+check( 'rows with another cell before the first closing tag are left alone', $broken === render( $broken, 'is-style-row-headers' ) );
+$embedded = '<table><tbody><tr><td><span title="</td>">x</span><!-- <td> --></td><td>y</td></tr></tbody></table>';
+check( 'cell-like text in quoted attributes and comments is not a cell tag', false !== strpos( render( $embedded, 'is-style-row-headers' ), '<th scope="row"><span title="</td>">x</span><!-- <td> --></th><td>y</td>' ) );
+$embedded = '<table><tbody><tr title="<td>"><!-- <td> --><td>x</td><td>y</td></tr></tbody></table>';
+check( 'cell-like text before the first cell is ignored', false !== strpos( render( $embedded, 'is-style-row-headers' ), '<tr title="<td>"><!-- <td> --><th scope="row">x</th><td>y</td>' ) );
+
+$large = '<table><thead><tr><th>Heading</th></tr></thead><tbody>' . str_repeat( '<tr>' . str_repeat( '<td>' . str_repeat( 'x', 65 ) . '</td>', 8 ) . '</tr>', 2048 ) . '</tbody></table>';
+$out   = render( $large, 'is-style-row-headers' );
+check( 'large tables are transformed or preserved in full', $out === $large || ( false !== strpos( $out, '<th scope="col">Heading</th>' ) && 2048 === substr_count( $out, '<th scope="row">' ) && 16384 === substr_count( $out, str_repeat( 'x', 65 ) ) ) );
+$limit = ini_get( 'pcre.backtrack_limit' );
+ini_set( 'pcre.backtrack_limit', '30' );
+$long_head = '<table><thead><tr><th>' . str_repeat( 'h', 100 ) . '</th></tr></thead><tbody><tr><td>x</td></tr></tbody></table>';
+$short_head = '<table><thead><tr><th>H</th></tr></thead></table>';
+$long_body = '<table><thead><tr><th>H</th></tr></thead><tbody><tr><td>' . str_repeat( 'b', 500 ) . '</td></tr></tbody></table>';
+$long_table = '<table ' . str_repeat( 'data-x="x" ', 100 ) . '><tbody></tbody></table>';
+check( 'PCRE failure in header rewrite preserves original HTML', $long_head === render( $long_head, 'is-style-row-headers' ) );
+check( 'short header can be rewritten under the same PCRE limit', false !== strpos( render( $short_head, 'is-style-row-headers' ), '<th scope="col">H</th>' ) );
+check( 'PCRE failure in body rewrite also rolls back header rewrite', $long_body === render( $long_body, 'is-style-row-headers' ) );
+check( 'PCRE failure in layout rewrite preserves original HTML', $long_table === render( $long_table, 'is-style-layout-only' ) );
+ini_set( 'pcre.backtrack_limit', '200' );
+$bad_header = '<table><thead><tr><th>H</th><th ' . str_repeat( 'a', 50 ) . '"bad>H</th></tr></thead></table>';
+$bad_row = '<table><thead><tr><th>H</th></tr></thead><tbody><tr ' . str_repeat( 'a', 50 ) . '"bad><td>x</td></tr></tbody></table>';
+check( 'nested header replacement failure rolls back the section', $bad_header === render( $bad_header, 'is-style-row-headers' ) );
+check( 'nested row replacement failure rolls back the header', $bad_row === render( $bad_row, 'is-style-row-headers' ) );
+ini_set( 'pcre.backtrack_limit', $limit );
+
 echo "\n$pass passed, $fail failed\n";
 exit( $fail ? 1 : 0 );
 PHP
