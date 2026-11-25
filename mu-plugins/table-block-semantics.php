@@ -45,9 +45,10 @@
  * The rewriting depends on the markup core renders for the table (figure > table >
  * thead/tbody > tr > td). That has been stable for years but is not guaranteed. The code is
  * deliberately defensive: it only edits markup it recognises, never converts a cell twice
- * (running it again changes nothing), and leaves anything unusual as it found it. After a major
- * WordPress update, run tools/tests/run-table-block-semantics-smoke.sh, and rescan a page that
- * uses these styles with an accessibility checker.
+ * (running it again changes nothing), and leaves anything unusual as it found it. Row-header
+ * rewriting is skipped when the markup contains more than one table, including nested tables.
+ * After a major WordPress update, run tools/tests/run-table-block-semantics-smoke.sh, and rescan
+ * a page that uses these styles with an accessibility checker.
  *
  * @package table-block-semantics
  */
@@ -161,6 +162,19 @@ function pw_table_semantics_with_scope( $attributes, $scope ) {
 function pw_table_semantics_add_row_headers( $html ) {
 	$original = $html;
 	$failed   = false;
+
+	// Multiple tables, including nested tables, are outside the recognised core block markup.
+	$offset = 0;
+	$count  = 0;
+	while ( 1 === ( $found = preg_match( '#<!--.*?-->(*SKIP)(*F)|<table(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>|<(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>(*SKIP)(*F)#is', $html, $table, PREG_OFFSET_CAPTURE, $offset ) ) ) {
+		if ( ++$count > 1 ) {
+			return $original;
+		}
+		$offset = $table[0][1] + strlen( $table[0][0] );
+	}
+	if ( false === $found ) {
+		return $original;
+	}
 
 	// Column headers in <thead>.
 	$html = preg_replace_callback(

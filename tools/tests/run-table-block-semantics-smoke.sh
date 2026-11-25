@@ -144,6 +144,18 @@ check( 'embedded tag text remains unchanged on a second render', $expected === r
 $embedded = '<table-placeholder title="<table>"></table-placeholder><table><thead><tr><th-placeholder>fake</th-placeholder><th>H</th></tr></thead><tbody><tr><td-placeholder>fake</td-placeholder><td>x</td></tr></tbody></table>';
 check( 'tag names with matching prefixes are not table or cell tags', '<table-placeholder title="<table>"></table-placeholder><table role="presentation"><thead><tr><th-placeholder>fake</th-placeholder><th>H</th></tr></thead><tbody><tr><td-placeholder>fake</td-placeholder><td>x</td></tr></tbody></table>' === render( $embedded, 'is-style-layout-only' ) && '<table-placeholder title="<table>"></table-placeholder><table><thead><tr><th-placeholder>fake</th-placeholder><th scope="col">H</th></tr></thead><tbody><tr><td-placeholder>fake</td-placeholder><th scope="row">x</th></tr></tbody></table>' === render( $embedded, 'is-style-row-headers' ) );
 
+$nested = '<figure><table><thead><tr><th>H</th></tr></thead><tbody><tr><td>First</td><td><table><tbody><tr><td>Nested</td></tr></tbody></table></td></tr><tr><td>Second</td></tr></tbody></table></figure>';
+check( 'nested table in a later cell leaves all header and body markup unchanged', $nested === render( $nested, 'is-style-row-headers' ) );
+$nested_first = '<table><tbody><tr><td><TABLE title="a > b"><tr><td>Nested</td></tr></TABLE></td></tr></tbody></table>';
+check( 'nested table in the first cell is left unchanged regardless of tag case', $nested_first === render( $nested_first, 'is-style-row-headers' ) );
+$nested_head = '<table><thead><tr><th><table><tbody><tr><td>Nested</td></tr></tbody></table></th></tr></thead><tbody><tr><td>Body</td></tr></tbody></table>';
+check( 'nested table in the header leaves the entire block unchanged', $nested_head === render( $nested_head, 'is-style-row-headers' ) );
+$siblings = '<table><tbody><tr><td>One</td></tr></tbody></table><table><tbody><tr><td>Two</td></tr></tbody></table>';
+check( 'multiple sibling tables are left unchanged', $siblings === render( $siblings, 'is-style-row-headers' ) );
+$fake_table = '<figure title="<table>"><!-- <table> --><table><tbody><tr><td><span title="<table>">x</span><!-- <table> --></td></tr></tbody></table></figure>';
+check( 'table text in comments and attributes does not trigger the multiple-table guard', '<figure title="<table>"><!-- <table> --><table><tbody><tr><th scope="row"><span title="<table>">x</span><!-- <table> --></th></tr></tbody></table></figure>' === render( $fake_table, 'is-style-row-headers' ) );
+check( 'layout-only still applies to the outer table when a nested table is present', str_replace( '<figure><table>', '<figure><table role="presentation">', $nested ) === render( $nested, 'is-style-layout-only' ) );
+
 $large = '<table><thead><tr><th>Heading</th></tr></thead><tbody>' . str_repeat( '<tr>' . str_repeat( '<td>' . str_repeat( 'x', 65 ) . '</td>', 8 ) . '</tr>', 2048 ) . '</tbody></table>';
 $out   = render( $large, 'is-style-row-headers' );
 check( 'large tables are transformed or preserved in full', $out === $large || ( false !== strpos( $out, '<th scope="col">Heading</th>' ) && 2048 === substr_count( $out, '<th scope="row">' ) && 16384 === substr_count( $out, str_repeat( 'x', 65 ) ) ) );
