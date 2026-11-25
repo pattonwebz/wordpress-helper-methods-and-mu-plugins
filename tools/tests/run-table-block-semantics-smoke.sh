@@ -133,14 +133,25 @@ check( 'cell-like text in quoted attributes and comments is not a cell tag', fal
 $embedded = '<table><tbody><tr title="<td>"><!-- <td> --><td>x</td><td>y</td></tr></tbody></table>';
 check( 'cell-like text before the first cell is ignored', false !== strpos( render( $embedded, 'is-style-row-headers' ), '<tr title="<td>"><!-- <td> --><th scope="row">x</th><td>y</td>' ) );
 
+$embedded = '<figure title="<table>"><!-- <table> --><table><tbody><tr><td>x</td></tr></tbody></table></figure>';
+check( 'layout-only ignores table text in attributes and comments', '<figure title="<table>"><!-- <table> --><table role="presentation"><tbody><tr><td>x</td></tr></tbody></table></figure>' === render( $embedded, 'is-style-layout-only' ) );
+$embedded = '<table><thead><!-- <th> --><tr><th><a title="<th>">H</a><!-- <th> --></th><th>H2</th></tr></thead></table>';
+check( 'column headers ignore header text in attributes and comments', '<table><thead><!-- <th> --><tr><th scope="col"><a title="<th>">H</a><!-- <th> --></th><th scope="col">H2</th></tr></thead></table>' === render( $embedded, 'is-style-row-headers' ) );
+$embedded = '<figure title="<thead>"><!-- <tbody><tr><td>fake</td></tr></tbody> --><table><thead title="</thead>"><tr><th><a title="</thead>">H</a><!-- </thead> --></th></tr></thead><tbody title="</tbody>"><tr title="</tr>"><td><a title="</tr> </tbody>">x</a><!-- </tr> </tbody> --></td><td>y</td></tr><tr><td>z</td></tr></tbody></table></figure>';
+$expected = '<figure title="<thead>"><!-- <tbody><tr><td>fake</td></tr></tbody> --><table><thead title="</thead>"><tr><th scope="col"><a title="</thead>">H</a><!-- </thead> --></th></tr></thead><tbody title="</tbody>"><tr title="</tr>"><th scope="row"><a title="</tr> </tbody>">x</a><!-- </tr> </tbody> --></th><td>y</td></tr><tr><th scope="row">z</th></tr></tbody></table></figure>';
+check( 'section and row boundaries ignore attributes and comments', $expected === render( $embedded, 'is-style-row-headers' ) );
+check( 'embedded tag text remains unchanged on a second render', $expected === render( render( $embedded, 'is-style-row-headers' ), 'is-style-row-headers' ) );
+$embedded = '<table-placeholder title="<table>"></table-placeholder><table><thead><tr><th-placeholder>fake</th-placeholder><th>H</th></tr></thead><tbody><tr><td-placeholder>fake</td-placeholder><td>x</td></tr></tbody></table>';
+check( 'tag names with matching prefixes are not table or cell tags', '<table-placeholder title="<table>"></table-placeholder><table role="presentation"><thead><tr><th-placeholder>fake</th-placeholder><th>H</th></tr></thead><tbody><tr><td-placeholder>fake</td-placeholder><td>x</td></tr></tbody></table>' === render( $embedded, 'is-style-layout-only' ) && '<table-placeholder title="<table>"></table-placeholder><table><thead><tr><th-placeholder>fake</th-placeholder><th scope="col">H</th></tr></thead><tbody><tr><td-placeholder>fake</td-placeholder><th scope="row">x</th></tr></tbody></table>' === render( $embedded, 'is-style-row-headers' ) );
+
 $large = '<table><thead><tr><th>Heading</th></tr></thead><tbody>' . str_repeat( '<tr>' . str_repeat( '<td>' . str_repeat( 'x', 65 ) . '</td>', 8 ) . '</tr>', 2048 ) . '</tbody></table>';
 $out   = render( $large, 'is-style-row-headers' );
 check( 'large tables are transformed or preserved in full', $out === $large || ( false !== strpos( $out, '<th scope="col">Heading</th>' ) && 2048 === substr_count( $out, '<th scope="row">' ) && 16384 === substr_count( $out, str_repeat( 'x', 65 ) ) ) );
 $limit = ini_get( 'pcre.backtrack_limit' );
 ini_set( 'pcre.backtrack_limit', '30' );
-$long_head = '<table><thead><tr><th>' . str_repeat( 'h', 100 ) . '</th></tr></thead><tbody><tr><td>x</td></tr></tbody></table>';
+$long_head = '<table><thead><tr><th>' . str_repeat( '<b>h</b>', 100 ) . '</th></tr></thead><tbody><tr><td>x</td></tr></tbody></table>';
 $short_head = '<table><thead><tr><th>H</th></tr></thead></table>';
-$long_body = '<table><thead><tr><th>H</th></tr></thead><tbody><tr><td>' . str_repeat( 'b', 500 ) . '</td></tr></tbody></table>';
+$long_body = '<table><thead><tr><th>H</th></tr></thead><tbody><tr><td>' . str_repeat( '<b>b</b>', 100 ) . '</td></tr></tbody></table>';
 $long_table = '<table ' . str_repeat( 'data-x="x" ', 100 ) . '><tbody></tbody></table>';
 check( 'PCRE failure in header rewrite preserves original HTML', $long_head === render( $long_head, 'is-style-row-headers' ) );
 check( 'short header can be rewritten under the same PCRE limit', false !== strpos( render( $short_head, 'is-style-row-headers' ), '<th scope="col">H</th>' ) );

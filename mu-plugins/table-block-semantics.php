@@ -110,7 +110,7 @@ add_filter( 'render_block_core/table', 'pw_table_semantics_render', 10, 2 );
  */
 function pw_table_semantics_make_presentational( $html ) {
 	$result = preg_replace_callback(
-		'#<table\b((?:[^>"\']+|"[^"]*"|\'[^\']*\')*)>#i',
+		'#<!--.*?-->(*SKIP)(*F)|<table(?=[\s/>])((?:[^>"\']+|"[^"]*"|\'[^\']*\')*)>|<(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>(*SKIP)(*F)#is',
 		function ( $match ) {
 			if ( pw_table_semantics_has_attribute( $match[1], 'role' ) ) {
 				return $match[0];
@@ -164,10 +164,10 @@ function pw_table_semantics_add_row_headers( $html ) {
 
 	// Column headers in <thead>.
 	$html = preg_replace_callback(
-		'#<thead\b.*?</thead>#is',
+		'#<!--.*?-->(*SKIP)(*F)|<thead(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>(?>[^<]+|<!--.*?-->|<(?!/thead(?=[\s/>]))(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>|<(?!/?[a-z!]))*</thead\s*>|<(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>(*SKIP)(*F)#is',
 		function ( $section ) use ( &$failed ) {
 			$result = preg_replace_callback(
-				'#<th\b((?:[^>"\']+|"[^"]*"|\'[^\']*\')*)>#i',
+				'#<!--.*?-->(*SKIP)(*F)|<th(?=[\s/>])((?:[^>"\']+|"[^"]*"|\'[^\']*\')*)>|<(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>(*SKIP)(*F)#is',
 				function ( $cell ) {
 					return '<th' . pw_table_semantics_with_scope( $cell[1], 'col' ) . '>';
 				},
@@ -187,9 +187,9 @@ function pw_table_semantics_add_row_headers( $html ) {
 
 	// First cell of every row in <tbody>. <tfoot> rows are left alone.
 	$result = preg_replace_callback(
-		'#<tbody\b.*?</tbody>#is',
+		'#<!--.*?-->(*SKIP)(*F)|<tbody(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>(?>[^<]+|<!--.*?-->|<(?!/tbody(?=[\s/>]))(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>|<(?!/?[a-z!]))*</tbody\s*>|<(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>(*SKIP)(*F)#is',
 		function ( $section ) use ( &$failed ) {
-			$result = preg_replace_callback( '#<tr\b(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>.*?</tr>#is', 'pw_table_semantics_row_first_cell', $section[0] );
+			$result = preg_replace_callback( '#<!--.*?-->(*SKIP)(*F)|<tr(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>(?>[^<]+|<!--.*?-->|<(?!/tr(?=[\s/>]))(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>|<(?!/?[a-z!]))*</tr\s*>|<(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>(*SKIP)(*F)#is', 'pw_table_semantics_row_first_cell', $section[0] );
 			if ( null === $result ) {
 				$failed = true;
 				return $section[0];
@@ -210,7 +210,7 @@ function pw_table_semantics_add_row_headers( $html ) {
 function pw_table_semantics_row_first_cell( $row_match ) {
 	$row = $row_match[0];
 
-	if ( ! preg_match( '#<!--.*?-->(*SKIP)(*F)|<(td|th)\b((?:[^>"\']+|"[^"]*"|\'[^\']*\')*)>|<(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>(*SKIP)(*F)#is', $row, $first, PREG_OFFSET_CAPTURE ) ) {
+	if ( ! preg_match( '#<!--.*?-->(*SKIP)(*F)|<(td|th)(?=[\s/>])((?:[^>"\']+|"[^"]*"|\'[^\']*\')*)>|<(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>(*SKIP)(*F)#is', $row, $first, PREG_OFFSET_CAPTURE ) ) {
 		return $row;
 	}
 
